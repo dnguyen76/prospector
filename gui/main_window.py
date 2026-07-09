@@ -157,38 +157,53 @@ class EntrepriseSearchApp(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.setMaximumHeight(260)
         main_layout.addWidget(self.table)
-
-        self.stats_label = QLabel("Résultats : 0 entreprise")
-        self.stats_label.setStyleSheet(
-            "font-weight: bold; padding: 6px; background-color: #f1f3f5;"
-        )
-        main_layout.addWidget(self.stats_label)
+        
         stats_layout = QHBoxLayout()
 
-        stats_layout = QHBoxLayout()
+        # self.stats_label = QLabel("Résultats : 0 entreprise")
+        # self.stats_label.setStyleSheet(
+            # "font-weight: bold; padding: 6px; background-color: #f1f3f5;"
+        # )
+        # main_layout.addWidget(self.stats_label)
+
+
+        # stats_layout = QHBoxLayout()
+
+        # self.lbl_nb = QLabel("Entreprises : 0")
+        # self.lbl_siret = QLabel("SIRET : 0")
+        # self.lbl_dirigeants = QLabel("Dirigeants : 0")
+
+
+        # for lbl in (self.lbl_nb, self.lbl_siret, self.lbl_dirigeants):
+            # lbl.setStyleSheet("""
+                # QLabel {
+                    # background-color: #EAF4FF;
+                    # color: #000000;
+                    # border: 1px solid #7AA7D9;
+                    # border-radius: 6px;
+                    # padding: 8px;
+                    # font-weight: bold;
+                    # font-size: 11pt;
+                    # }
+            # """)
+            # stats_layout.addWidget(lbl)
+
+        # stats_layout.addStretch()
+
+        # main_layout.addLayout(stats_layout)
+        # stats_layout = QHBoxLayout()
 
         self.lbl_nb = QLabel("Entreprises : 0")
         self.lbl_siret = QLabel("SIRET : 0")
         self.lbl_dirigeants = QLabel("Dirigeants : 0")
 
         for lbl in (self.lbl_nb, self.lbl_siret, self.lbl_dirigeants):
-            lbl.setStyleSheet("""
-                QLabel {
-                    background-color: #EAF4FF;
-                    color: #000000;
-                    border: 1px solid #7AA7D9;
-                    border-radius: 6px;
-                    padding: 8px;
-                    font-weight: bold;
-                    font-size: 11pt;
-                    }
-            """)
+            lbl.setObjectName("statsLabel")
             stats_layout.addWidget(lbl)
 
         stats_layout.addStretch()
 
         main_layout.addLayout(stats_layout)
-
 
         # main_layout.addLayout(stats_layout)
         # self.result_area = QTextEdit()
