@@ -146,8 +146,14 @@ class EntrepriseSearchApp(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.setMinimumHeight(260)
         main_layout.addWidget(self.table)
+        # self.result_area = QTextEdit()
+        # self.result_area.setReadOnly(True)
+        # main_layout.addWidget(self.result_area)
+        main_layout.addWidget(QLabel("<b>Journal :</b>"))
+
         self.result_area = QTextEdit()
         self.result_area.setReadOnly(True)
+        self.result_area.setMinimumHeight(180)
         main_layout.addWidget(self.result_area)
 
         self.setLayout(main_layout)
@@ -251,10 +257,13 @@ class EntrepriseSearchApp(QWidget):
             self.table.resizeColumnsToContents()
             if not resultats:
                 self.result_area.setText("Aucun résultat trouvé avec vos critères.")
+            # else:
+                # self.btn_csv.setEnabled(True)
+                # self._afficher_resultats(resultats)
             else:
                 self.btn_csv.setEnabled(True)
-                self._afficher_resultats(resultats)
-
+                self.result_area.append( f"Extraction terminée : {len(resultats)} entreprise(s) collectée(s)."
+    )
         except Exception as e:
             self.result_area.setText(f"Erreur réseau : {e}")
 
