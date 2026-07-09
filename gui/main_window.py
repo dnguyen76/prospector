@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
+from PyQt6.QtWidgets import QApplication
 from controllers.recherche_controller import RechercheController
 from utils.constants import LISTE_NAF_SELECTION, TRANCHES_EFFECTIFS
 
@@ -237,7 +237,7 @@ class EntrepriseSearchApp(QWidget):
                 communes=communes_valides,
                 code_naf_selectionne=self.combo_act.currentData(),
                 code_tranche_max=self.combo_eff.currentData(),
-                message_callback=self.result_area.append,
+                message_callback=self._message_recherche,
             )
 
             if not resultats:
@@ -277,7 +277,11 @@ class EntrepriseSearchApp(QWidget):
             affichage += "-" * 70 + "\n"
 
         self.result_area.setText(affichage)
-
+        
+    def _message_recherche(self, message: str):
+        self.result_area.append(message)
+        QApplication.processEvents()
+        
     def exporter_csv(self):
         if not self.controller.resultats:
             return
