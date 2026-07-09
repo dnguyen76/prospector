@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QTableView
+from gui.results_table import EntrepriseTableModel
 from controllers.recherche_controller import RechercheController
 from utils.constants import LISTE_NAF_SELECTION, TRANCHES_EFFECTIFS
 
@@ -29,6 +31,7 @@ class EntrepriseSearchApp(QWidget):
         self.controller = RechercheController()
         self.communes_trouvees = []
         self.communes_checkboxes = {}
+        self.table_model = EntrepriseTableModel()
 
         self.timer_autocompletion = QTimer()
         self.timer_autocompletion.setSingleShot(True)
@@ -137,7 +140,12 @@ class EntrepriseSearchApp(QWidget):
         buttons_layout.addWidget(self.btn_csv)
 
         main_layout.addLayout(buttons_layout)
-
+        self.table = QTableView()
+        self.table.setModel(self.table_model)
+        self.table.setSortingEnabled(True)
+        self.table.setAlternatingRowColors(True)
+        self.table.setMinimumHeight(260)
+        main_layout.addWidget(self.table)
         self.result_area = QTextEdit()
         self.result_area.setReadOnly(True)
         main_layout.addWidget(self.result_area)
@@ -239,7 +247,8 @@ class EntrepriseSearchApp(QWidget):
                 code_tranche_max=self.combo_eff.currentData(),
                 message_callback=self._message_recherche,
             )
-
+            self.table_model.set_entreprises(resultats)
+            self.table.resizeColumnsToContents()
             if not resultats:
                 self.result_area.setText("Aucun résultat trouvé avec vos critères.")
             else:
