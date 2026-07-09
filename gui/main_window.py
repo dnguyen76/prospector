@@ -32,6 +32,7 @@ class EntrepriseSearchApp(QWidget):
         self.communes_trouvees = []
         self.communes_checkboxes = {}
         self.table_model = EntrepriseTableModel()
+        self.resultats_complets = []
 
         self.timer_autocompletion = QTimer()
         self.timer_autocompletion.setSingleShot(True)
@@ -140,12 +141,23 @@ class EntrepriseSearchApp(QWidget):
         buttons_layout.addWidget(self.btn_csv)
 
         main_layout.addLayout(buttons_layout)
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(QLabel("Filtrer les résultats :"))
+
+        self.input_filtre = QLineEdit()
+        self.input_filtre.setPlaceholderText("Nom, SIREN, activité, commune, dirigeant...")
+        self.input_filtre.textChanged.connect(self.filtrer_resultats)
+
+        filter_layout.addWidget(self.input_filtre)
+        main_layout.addLayout(filter_layout)
+        
         self.table = QTableView()
         self.table.setModel(self.table_model)
         self.table.setSortingEnabled(True)
         self.table.setAlternatingRowColors(True)
         self.table.setMinimumHeight(260)
         main_layout.addWidget(self.table)
+        
         # self.result_area = QTextEdit()
         # self.result_area.setReadOnly(True)
         # main_layout.addWidget(self.result_area)
@@ -253,6 +265,8 @@ class EntrepriseSearchApp(QWidget):
                 code_tranche_max=self.combo_eff.currentData(),
                 message_callback=self._message_recherche,
             )
+#            self.table_model.set_entreprises(resultats)
+            self.resultats_complets = resultats
             self.table_model.set_entreprises(resultats)
             self.table.resizeColumnsToContents()
             if not resultats:
@@ -262,7 +276,8 @@ class EntrepriseSearchApp(QWidget):
                 # self._afficher_resultats(resultats)
             else:
                 self.btn_csv.setEnabled(True)
-                self.result_area.append( f"Extraction terminée : {len(resultats)} entreprise(s) collectée(s)."
+                self.result_area.append(
+                f"Extraction terminée : {len(resultats)} entreprise(s) collectée(s)."
     )
         except Exception as e:
             self.result_area.setText(f"Erreur réseau : {e}")
@@ -295,6 +310,34 @@ class EntrepriseSearchApp(QWidget):
             affichage += "-" * 70 + "\n"
 
         self.result_area.setText(affichage)
+    
+    def filtrer_resultats(self, texte: str):
+        texte = texte.strip().lower()
+
+        if not texte:
+            self.table_model.set_entreprises(self.resultats_complets)
+            self.table.resizeColumnsToContents()
+            return
+
+        filtres = []
+
+        for e in self.resultats_complets:
+            contenu = " ".join([
+                e.nom,
+                e.siren,
+                e.siret,
+                e.activite,
+                e.effectif,
+                e.adresse.complete,
+                e.dirigeant.nom_complet,
+                e.dirigeant.qualite,
+            ]).lower()
+
+            if texte in contenu:
+                filtres.append(e)
+
+        self.table_model.set_entreprises(filtres)
+        self.table.resizeColumnsToContents()
         
     def _message_recherche(self, message: str):
         self.result_area.append(message)
