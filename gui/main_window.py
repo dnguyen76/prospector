@@ -155,9 +155,42 @@ class EntrepriseSearchApp(QWidget):
         self.table.setModel(self.table_model)
         self.table.setSortingEnabled(True)
         self.table.setAlternatingRowColors(True)
-        self.table.setMinimumHeight(260)
+        self.table.setMaximumHeight(260)
         main_layout.addWidget(self.table)
-        
+
+        self.stats_label = QLabel("Résultats : 0 entreprise")
+        self.stats_label.setStyleSheet(
+            "font-weight: bold; padding: 6px; background-color: #f1f3f5;"
+        )
+        main_layout.addWidget(self.stats_label)
+        stats_layout = QHBoxLayout()
+
+        stats_layout = QHBoxLayout()
+
+        self.lbl_nb = QLabel("Entreprises : 0")
+        self.lbl_siret = QLabel("SIRET : 0")
+        self.lbl_dirigeants = QLabel("Dirigeants : 0")
+
+        for lbl in (self.lbl_nb, self.lbl_siret, self.lbl_dirigeants):
+            lbl.setStyleSheet("""
+                QLabel {
+                    background-color: #EAF4FF;
+                    color: #000000;
+                    border: 1px solid #7AA7D9;
+                    border-radius: 6px;
+                    padding: 8px;
+                    font-weight: bold;
+                    font-size: 11pt;
+                    }
+            """)
+            stats_layout.addWidget(lbl)
+
+        stats_layout.addStretch()
+
+        main_layout.addLayout(stats_layout)
+
+
+        # main_layout.addLayout(stats_layout)
         # self.result_area = QTextEdit()
         # self.result_area.setReadOnly(True)
         # main_layout.addWidget(self.result_area)
@@ -269,6 +302,8 @@ class EntrepriseSearchApp(QWidget):
             self.resultats_complets = resultats
             self.table_model.set_entreprises(resultats)
             self.table.resizeColumnsToContents()
+            self._mettre_a_jour_stats(self.table_model.get_all())
+            self._mettre_a_jour_stats(resultats)
             if not resultats:
                 self.result_area.setText("Aucun résultat trouvé avec vos critères.")
             # else:
@@ -317,6 +352,7 @@ class EntrepriseSearchApp(QWidget):
         if not texte:
             self.table_model.set_entreprises(self.resultats_complets)
             self.table.resizeColumnsToContents()
+            self._mettre_a_jour_stats(self.table_model.get_all())
             return
 
         filtres = []
@@ -338,6 +374,17 @@ class EntrepriseSearchApp(QWidget):
 
         self.table_model.set_entreprises(filtres)
         self.table.resizeColumnsToContents()
+        self._mettre_a_jour_stats(self.table_model.get_all())
+    
+    def _mettre_a_jour_stats(self, resultats):
+
+        nb = len(resultats)
+        nb_siret = sum(1 for e in resultats if e.siret)
+        nb_dirigeants = sum(1 for e in resultats if e.dirigeant.nom)
+
+        self.lbl_nb.setText(f"Entreprises : {nb}")
+        self.lbl_siret.setText(f"SIRET : {nb_siret}")
+        self.lbl_dirigeants.setText(f"Dirigeants : {nb_dirigeants}")
         
     def _message_recherche(self, message: str):
         self.result_area.append(message)
