@@ -2,10 +2,11 @@ import re
 
 from PyQt6.QtCore import Qt, QStringListModel, QTimer
 from PyQt6.QtWidgets import (
-    QFileDialog,
+    QApplication,
     QCheckBox,
     QComboBox,
     QCompleter,
+    QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -13,14 +14,14 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QTableView,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtWidgets import QTableView
-from gui.results_table import EntrepriseTableModel
+
 from controllers.recherche_controller import RechercheController
+from gui.results_table import EntrepriseFilterProxyModel, EntrepriseTableModel
 from utils.constants import LISTE_NAF_SELECTION, TRANCHES_EFFECTIFS
 
 
@@ -31,10 +32,13 @@ class EntrepriseSearchApp(QWidget):
         self.controller = RechercheController()
         self.communes_trouvees = []
         self.communes_checkboxes = {}
-        self.table_model = EntrepriseTableModel()
         self.resultats_complets = []
 
-        self.timer_autocompletion = QTimer()
+        self.table_model = EntrepriseTableModel()
+        self.proxy_model = EntrepriseFilterProxyModel()
+        self.proxy_model.setSourceModel(self.table_model)
+
+        self.timer_autocompletion = QTimer(self)
         self.timer_autocompletion.setSingleShot(True)
         self.timer_autocompletion.timeout.connect(self.executer_appel_api_commune)
 
@@ -42,36 +46,38 @@ class EntrepriseSearchApp(QWidget):
 
     def init_ui(self):
         self.setWindowTitle("Prospector V2 - Refactoring V1")
-        self.resize(850, 850)
+        self.resize(1000, 900)
 
-        main_layout = QVBoxLayout()
+        main_layout = QVBoxLayout(self)
 
-        geo_group = QGroupBox("Zone Géographique")
-        geo_layout = QVBoxLayout()
+        geo_group = QGroupBox("Zone géographique")
+        geo_layout = QVBoxLayout(geo_group)
 
         input_layout = QHBoxLayout()
         input_layout.addWidget(QLabel("Commune centre :"))
 
         self.input_commune = QLineEdit()
-        self.input_commune.setPlaceholderText(
-            "Tapez vite, la recherche attend que vous ayez fini..."
-        )
+        self.input_commune.setPlaceholderText("Saisissez le nom d'une commune...")
         self.input_commune.textChanged.connect(self.declencher_timer_autocompletion)
 
-        self.completer_model = QStringListModel()
-        self.completer = QCompleter()
+        self.completer_model = QStringListModel(self)
+        self.completer = QCompleter(self)
         self.completer.setModel(self.completer_model)
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setFilterMode(Qt.MatchFlag.MatchContains)
         self.input_commune.setCompleter(self.completer)
 
         input_layout.addWidget(self.input_commune)
-
         input_layout.addWidget(QLabel("Rayon :"))
+
         self.combo_rayon = QComboBox()
-        self.combo_rayon.addItems(
-            ["0 km (Uniquement la ville)", "5 km", "10 km", "20 km", "30 km"]
-        )
+        self.combo_rayon.addItems([
+            "0 km (Uniquement la ville)",
+            "5 km",
+            "10 km",
+            "20 km",
+            "30 km",
+        ])
         self.combo_rayon.setCurrentIndex(2)
         input_layout.addWidget(self.combo_rayon)
 
@@ -91,32 +97,29 @@ class EntrepriseSearchApp(QWidget):
 
         self.widget_communes_content = QWidget()
         self.layout_communes_list = QVBoxLayout(self.widget_communes_content)
+        self.layout_communes_list.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.scroll_communes.setWidget(self.widget_communes_content)
 
         geo_layout.addWidget(self.scroll_communes)
-        geo_group.setLayout(geo_layout)
         main_layout.addWidget(geo_group)
 
-        main_layout.addWidget(QLabel("<b>Filtres d'activité & effectifs :</b>"))
+        main_layout.addWidget(QLabel("<b>Filtres d'activité et d'effectifs :</b>"))
 
         act_layout = QHBoxLayout()
-        act_layout.addWidget(QLabel("Secteur / Activité principale :"))
+        act_layout.addWidget(QLabel("Secteur / activité principale :"))
 
         self.combo_act = QComboBox()
         for code, libelle in LISTE_NAF_SELECTION.items():
             texte_affichage = libelle if code == "TOUS" else f"{code} - {libelle}"
             self.combo_act.addItem(texte_affichage, code)
-
         act_layout.addWidget(self.combo_act)
         main_layout.addLayout(act_layout)
 
         eff_layout = QHBoxLayout()
         eff_layout.addWidget(QLabel("Effectif maximum souhaité :"))
-
         self.combo_eff = QComboBox()
         for code, info in TRANCHES_EFFECTIFS.items():
             self.combo_eff.addItem(info[1], code)
-
         eff_layout.addWidget(self.combo_eff)
         main_layout.addLayout(eff_layout)
 
@@ -124,8 +127,7 @@ class EntrepriseSearchApp(QWidget):
 
         self.btn_search = QPushButton("2. Lancer la recherche d'entreprises")
         self.btn_search.setStyleSheet(
-            "font-weight: bold; padding: 10px; "
-            "background-color: #0056b3; color: white;"
+            "font-weight: bold; padding: 10px; background-color: #0056b3; color: white;"
         )
         self.btn_search.setEnabled(False)
         self.btn_search.clicked.connect(self.performer_recherche)
@@ -133,105 +135,73 @@ class EntrepriseSearchApp(QWidget):
 
         self.btn_csv = QPushButton("Exporter en CSV")
         self.btn_csv.setStyleSheet(
-            "font-weight: bold; padding: 10px; "
-            "background-color: #28a745; color: white;"
+            "font-weight: bold; padding: 10px; background-color: #28a745; color: white;"
         )
         self.btn_csv.setEnabled(False)
         self.btn_csv.clicked.connect(self.exporter_csv)
         buttons_layout.addWidget(self.btn_csv)
-
         main_layout.addLayout(buttons_layout)
+
         filter_layout = QHBoxLayout()
         filter_layout.addWidget(QLabel("Filtrer les résultats :"))
-
         self.input_filtre = QLineEdit()
-        self.input_filtre.setPlaceholderText("Nom, SIREN, activité, commune, dirigeant...")
+        self.input_filtre.setPlaceholderText(
+            "Nom, SIREN, activité, commune, dirigeant..."
+        )
         self.input_filtre.textChanged.connect(self.filtrer_resultats)
-
         filter_layout.addWidget(self.input_filtre)
         main_layout.addLayout(filter_layout)
-        
+
         self.table = QTableView()
-        self.table.setModel(self.table_model)
+        self.table.setModel(self.proxy_model)
         self.table.setSortingEnabled(True)
         self.table.setAlternatingRowColors(True)
-        self.table.setMaximumHeight(260)
+        self.table.setMinimumHeight(260)
+        self.table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         main_layout.addWidget(self.table)
-        
+
         stats_layout = QHBoxLayout()
-
-        # self.stats_label = QLabel("Résultats : 0 entreprise")
-        # self.stats_label.setStyleSheet(
-            # "font-weight: bold; padding: 6px; background-color: #f1f3f5;"
-        # )
-        # main_layout.addWidget(self.stats_label)
-
-
-        # stats_layout = QHBoxLayout()
-
-        # self.lbl_nb = QLabel("Entreprises : 0")
-        # self.lbl_siret = QLabel("SIRET : 0")
-        # self.lbl_dirigeants = QLabel("Dirigeants : 0")
-
-
-        # for lbl in (self.lbl_nb, self.lbl_siret, self.lbl_dirigeants):
-            # lbl.setStyleSheet("""
-                # QLabel {
-                    # background-color: #EAF4FF;
-                    # color: #000000;
-                    # border: 1px solid #7AA7D9;
-                    # border-radius: 6px;
-                    # padding: 8px;
-                    # font-weight: bold;
-                    # font-size: 11pt;
-                    # }
-            # """)
-            # stats_layout.addWidget(lbl)
-
-        # stats_layout.addStretch()
-
-        # main_layout.addLayout(stats_layout)
-        # stats_layout = QHBoxLayout()
-
         self.lbl_nb = QLabel("Entreprises : 0")
         self.lbl_siret = QLabel("SIRET : 0")
         self.lbl_dirigeants = QLabel("Dirigeants : 0")
 
-        for lbl in (self.lbl_nb, self.lbl_siret, self.lbl_dirigeants):
-            lbl.setObjectName("statsLabel")
-            stats_layout.addWidget(lbl)
+        for label in (self.lbl_nb, self.lbl_siret, self.lbl_dirigeants):
+            label.setObjectName("statsLabel")
+            label.setStyleSheet(
+                "background-color: #EAF4FF; color: #000000; "
+                "border: 1px solid #7AA7D9; border-radius: 6px; "
+                "padding: 8px; font-weight: bold;"
+            )
+            stats_layout.addWidget(label)
 
         stats_layout.addStretch()
-
         main_layout.addLayout(stats_layout)
 
-        # main_layout.addLayout(stats_layout)
-        # self.result_area = QTextEdit()
-        # self.result_area.setReadOnly(True)
-        # main_layout.addWidget(self.result_area)
         main_layout.addWidget(QLabel("<b>Journal :</b>"))
-
         self.result_area = QTextEdit()
         self.result_area.setReadOnly(True)
-        self.result_area.setMinimumHeight(180)
+        self.result_area.setMinimumHeight(160)
         main_layout.addWidget(self.result_area)
 
-        self.setLayout(main_layout)
+        self.status_label = QLabel("Prêt")
+        self.status_label.setStyleSheet(
+            "color: #000000; background-color: #F1F3F5; padding: 5px;"
+        )
+        main_layout.addWidget(self.status_label)
 
     def declencher_timer_autocompletion(self, texte):
         if len(texte.strip()) < 2:
+            self.completer_model.setStringList([])
             return
-
         self.timer_autocompletion.start(300)
 
     def executer_appel_api_commune(self):
         texte = self.input_commune.text().strip()
-
         try:
             suggestions = self.controller.suggestions_communes(texte)
             self.completer_model.setStringList(suggestions)
         except Exception:
-            pass
+            self.completer_model.setStringList([])
 
     def calculer_communes_rayon(self):
         saisie = self.input_commune.text().strip()
@@ -244,49 +214,51 @@ class EntrepriseSearchApp(QWidget):
         self._vider_liste_communes()
         self.communes_trouvees = []
         self.btn_search.setEnabled(False)
+        self.status_label.setText("Calcul de la zone en cours...")
 
         try:
             self.communes_trouvees = self.controller.calculer_communes_rayon(
                 saisie=saisie,
                 choix_rayon=choix_rayon,
             )
-
             self._afficher_communes()
-
             self.btn_search.setEnabled(True)
+            self.status_label.setText(
+                f"Zone calculée : {len(self.communes_trouvees)} commune(s)"
+            )
             QMessageBox.information(
                 self,
                 "Zone calculée",
                 f"{len(self.communes_trouvees)} commune(s) trouvée(s) dans le secteur.",
             )
-
-        except Exception as e:
-            QMessageBox.critical(self, "Erreur technique", f"Erreur lors du traitement : {e}")
+        except Exception as exc:
+            self.status_label.setText("Erreur lors du calcul de la zone")
+            QMessageBox.critical(
+                self,
+                "Erreur technique",
+                f"Erreur lors du traitement : {exc}",
+            )
 
     def _vider_liste_communes(self):
-        for i in reversed(range(self.layout_communes_list.count())):
-            widget = self.layout_communes_list.itemAt(i).widget()
+        for index in reversed(range(self.layout_communes_list.count())):
+            item = self.layout_communes_list.itemAt(index)
+            widget = item.widget()
             if widget:
                 widget.setParent(None)
 
     def _afficher_communes(self):
-        if hasattr(self, "widget_communes_content"):
-            self.widget_communes_content.deleteLater()
-
         self.widget_communes_content = QWidget()
         self.layout_communes_list = QVBoxLayout(self.widget_communes_content)
         self.layout_communes_list.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self.communes_checkboxes = {}
-
         for commune in self.communes_trouvees:
-            cb = QCheckBox(commune.label())
-            cb.setChecked(True)
-            self.communes_checkboxes[commune.code] = cb
-            self.layout_communes_list.addWidget(cb)
+            checkbox = QCheckBox(commune.label())
+            checkbox.setChecked(True)
+            self.communes_checkboxes[commune.code] = checkbox
+            self.layout_communes_list.addWidget(checkbox)
 
         self.scroll_communes.setWidget(self.widget_communes_content)
-        self.widget_communes_content.adjustSize()
 
     def performer_recherche(self):
         communes_valides = [
@@ -297,14 +269,20 @@ class EntrepriseSearchApp(QWidget):
         ]
 
         if not communes_valides:
-            QMessageBox.warning(self, "Attention", "Veuillez cocher au moins une commune.")
+            QMessageBox.warning(
+                self,
+                "Attention",
+                "Veuillez cocher au moins une commune.",
+            )
             return
 
         self.result_area.setText(
             f"Lancement de la recherche sur {len(communes_valides)} commune(s)..."
         )
+        self.status_label.setText("Recherche en cours...")
         self.btn_search.setEnabled(False)
         self.btn_csv.setEnabled(False)
+        self.input_filtre.clear()
 
         try:
             resultats = self.controller.rechercher_entreprises(
@@ -313,108 +291,69 @@ class EntrepriseSearchApp(QWidget):
                 code_tranche_max=self.combo_eff.currentData(),
                 message_callback=self._message_recherche,
             )
-#            self.table_model.set_entreprises(resultats)
+
             self.resultats_complets = resultats
             self.table_model.set_entreprises(resultats)
+            self.proxy_model.invalidateFilter()
             self.table.resizeColumnsToContents()
-            self._mettre_a_jour_stats(self.table_model.get_all())
             self._mettre_a_jour_stats(resultats)
+
             if not resultats:
                 self.result_area.setText("Aucun résultat trouvé avec vos critères.")
-            # else:
-                # self.btn_csv.setEnabled(True)
-                # self._afficher_resultats(resultats)
+                self.status_label.setText("Recherche terminée : aucun résultat")
             else:
                 self.btn_csv.setEnabled(True)
                 self.result_area.append(
-                f"Extraction terminée : {len(resultats)} entreprise(s) collectée(s)."
-    )
-        except Exception as e:
-            self.result_area.setText(f"Erreur réseau : {e}")
+                    f"Extraction terminée : {len(resultats)} entreprise(s) collectée(s)."
+                )
+                self.status_label.setText(
+                    f"Recherche terminée : {len(resultats)} entreprise(s)"
+                )
 
+        except Exception as exc:
+            self.result_area.setText(f"Erreur réseau : {exc}")
+            self.status_label.setText("Erreur pendant la recherche")
         finally:
             self.btn_search.setEnabled(True)
 
-    def _afficher_resultats(self, resultats):
-        affichage = (
-            f"Extraction terminée ! Nombre total d'entreprises collectées : "
-            f"{len(resultats)}\n"
-        )
-        affichage += "=" * 70 + "\n\n"
+    def filtrer_resultats(self, texte):
+        self.proxy_model.setFilterFixedString(texte)
+        self._mettre_a_jour_stats_filtrees(self.proxy_model.rowCount())
 
-        for i, entreprise in enumerate(resultats, 1):
-            affichage += f"{i}. {entreprise.nom or 'Nom inconnu'}\n"
-            affichage += (
-                f"   SIRET : {entreprise.siret} | "
-                f"Effectif : {entreprise.effectif}\n"
+    def _mettre_a_jour_stats_filtrees(self, nb_affiches):
+        nb_total = len(self.resultats_complets)
+        if nb_affiches == nb_total:
+            self.lbl_nb.setText(f"Entreprises : {nb_total}")
+        else:
+            self.lbl_nb.setText(
+                f"Entreprises : {nb_affiches} affichée(s) / {nb_total}"
             )
-            affichage += f"   Activité : {entreprise.activite}\n"
-            affichage += f"   Adresse : {entreprise.adresse.complete}\n"
 
-            if entreprise.dirigeant.nom:
-                affichage += (
-                    f"   Dirigeant : {entreprise.dirigeant.nom_complet} "
-                    f"({entreprise.dirigeant.qualite})\n"
-                )
-
-            affichage += "-" * 70 + "\n"
-
-        self.result_area.setText(affichage)
-    
-    def filtrer_resultats(self, texte: str):
-        texte = texte.strip().lower()
-
-        if not texte:
-            self.table_model.set_entreprises(self.resultats_complets)
-            self.table.resizeColumnsToContents()
-            self._mettre_a_jour_stats(self.table_model.get_all())
-            return
-
-        filtres = []
-
-        for e in self.resultats_complets:
-            contenu = " ".join([
-                e.nom,
-                e.siren,
-                e.siret,
-                e.activite,
-                e.effectif,
-                e.adresse.complete,
-                e.dirigeant.nom_complet,
-                e.dirigeant.qualite,
-            ]).lower()
-
-            if texte in contenu:
-                filtres.append(e)
-
-        self.table_model.set_entreprises(filtres)
-        self.table.resizeColumnsToContents()
-        self._mettre_a_jour_stats(self.table_model.get_all())
-    
     def _mettre_a_jour_stats(self, resultats):
-
         nb = len(resultats)
-        nb_siret = sum(1 for e in resultats if e.siret)
-        nb_dirigeants = sum(1 for e in resultats if e.dirigeant.nom)
-
+        nb_siret = sum(1 for entreprise in resultats if entreprise.siret)
+        nb_dirigeants = sum(
+            1 for entreprise in resultats if entreprise.dirigeant.nom
+        )
         self.lbl_nb.setText(f"Entreprises : {nb}")
         self.lbl_siret.setText(f"SIRET : {nb_siret}")
         self.lbl_dirigeants.setText(f"Dirigeants : {nb_dirigeants}")
-        
-    def _message_recherche(self, message: str):
+
+    def _message_recherche(self, message):
         self.result_area.append(message)
         QApplication.processEvents()
-        
+
     def exporter_csv(self):
         if not self.controller.resultats:
             return
 
         saisie_commune = self.input_commune.text().strip()
-        nom_commune = saisie_commune.split(" (")[0] if " (" in saisie_commune else saisie_commune
-
-        choix_rayon = self.combo_rayon.currentText()
-        rayon_str = choix_rayon.split(" ")[0] + "_Km"
-
+        nom_commune = (
+            saisie_commune.split(" (")[0]
+            if " (" in saisie_commune
+            else saisie_commune
+        )
+        rayon_str = self.combo_rayon.currentText().split(" ")[0] + "_Km"
         code_act = self.combo_act.currentData()
         nom_activite = LISTE_NAF_SELECTION.get(code_act, "Toutes_Activites")
 
@@ -428,9 +367,16 @@ class EntrepriseSearchApp(QWidget):
             "CSV (*.csv)",
         )
 
-        if fichier:
-            try:
-                self.controller.exporter_csv(fichier)
-                QMessageBox.information(self, "Succès", "Fichier CSV exporté avec succès.")
-            except Exception as e:
-                QMessageBox.critical(self, "Erreur", str(e))
+        if not fichier:
+            return
+
+        try:
+            self.controller.exporter_csv(fichier)
+            QMessageBox.information(
+                self,
+                "Succès",
+                "Fichier CSV exporté avec succès.",
+            )
+            self.status_label.setText(f"Export CSV terminé : {fichier}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Erreur", str(exc))
